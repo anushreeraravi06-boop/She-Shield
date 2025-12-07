@@ -1,0 +1,485 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>SafeHer — Fresh Build (Single file)</title>
+<meta name="description" content="SafeHer demo — loud police siren, SOS, shake, voice, fake call, share location. Single file." />
+<style>
+  :root{
+    --bg:#071223;--card:#0b1622;--accent:#ff3b30;--muted:#9bb0c9;
+  }
+  *{box-sizing:border-box;font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+  body{margin:0;background:linear-gradient(180deg,#071322,#03111a);color:#e6f3ff;min-height:100vh}
+  .wrap{max-width:920px;margin:18px auto;padding:12px}
+  header{padding:8px 0;text-align:center}
+  h1{margin:0;font-size:24px}
+  p.lead{margin:6px 0;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:12px;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,0.6)}
+  .full{grid-column:1/-1}
+  button{cursor:pointer;border:0;padding:12px;border-radius:10px;font-weight:600}
+  .danger{background:linear-gradient(90deg,#ff6b6b,#ff3b30);color:#fff}
+  .muted{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+  .row{display:flex;gap:10px}
+  input,select,textarea{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+  label{font-size:13px;color:var(--muted);margin-bottom:6px;display:block}
+  #log{font-size:13px;color:var(--muted);max-height:140px;overflow:auto;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02)}
+  .small{font-size:13px;color:var(--muted)}
+  @media(max-width:800px){.grid{grid-template-columns:1fr}}
+  footer{padding:10px;text-align:center;color:var(--muted);font-size:13px}
+  /* startScreen */
+  #startScreen{position:fixed;inset:0;background:#000000e6;display:flex;align-items:center;justify-content:center;z-index:9999}
+  #startBox{background:#071427;padding:22px;border-radius:12px;text-align:center;max-width:360px}
+  #fakeCallModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:99999}
+  #fakeCallBox{background:#071427;padding:18px;border-radius:12px;text-align:center;width:320px}
+</style>
+</head>
+<body>
+
+<!-- === Enable screen: must tap once to unlock audio & sensors on mobile === -->
+<div id="startScreen" aria-hidden="false">
+  <div id="startBox">
+    <h2>SafeHer — Tap to enable</h2>
+    <p class="small">Tap to allow sound and sensors (required on mobile). After enabling you'll be able to use siren, shake, and voice triggers.</p>
+    <div style="height:12px"></div>
+    <button class="danger" id="enableBtn" style="padding:12px 18px">Enable System</button>
+    <div style="height:8px"></div>
+    <button id="enableLater" class="muted" style="padding:8px">I'll enable later (demo only)</button>
+  </div>
+</div>
+
+<div class="wrap" id="app" aria-hidden="true">
+  <header>
+    <h1>SafeHer — Fresh Build</h1>
+    <p class="lead">Long-press Critical SOS, Start Siren, Discreet SOS, Shake & Voice triggers. Single file — paste & deploy.</p>
+  </header>
+
+  <main class="grid">
+    <section class="card">
+      <label>Immediate SOS</label>
+      <div class="row" style="margin-bottom:10px">
+        <button id="criticalBtn" class="danger" style="flex:1">Critical SOS (long-press)</button>
+      </div>
+
+      <div class="row" style="margin-bottom:10px">
+        <button id="discreetBtn" class="muted" style="flex:1">Discreet SOS (share only)</button>
+        <button id="fakeCallBtn" class="muted" style="flex:1">Fake Incoming Call</button>
+      </div>
+
+      <label>Sirens</label>
+      <div class="row">
+        <button id="startSiren" class="danger" style="flex:1">Start Siren</button>
+        <button id="stopSiren" class="muted" style="flex:1">Stop Siren</button>
+      </div>
+
+      <div style="height:10px"></div>
+      <div id="log" role="status" aria-live="polite">Ready.</div>
+    </section>
+
+    <section class="card">
+      <label>Sensors & Test</label>
+      <div class="small" style="margin-bottom:8px">Shake: <span id="shakeState">OFF</span> • Voice: <span id="voiceState">OFF</span></div>
+      <div class="row" style="margin-bottom:10px">
+        <button id="testShake" class="muted" style="flex:1">Simulate Shake</button>
+        <button id="testVoice" class="muted" style="flex:1">Simulate Voice</button>
+      </div>
+
+      <label>Check-in (minutes)</label>
+      <div class="row" style="margin-bottom:8px">
+        <input id="checkinMins" type="number" min="0" value="0" />
+        <button id="startCheckin" class="muted">Start</button>
+      </div>
+      <button id="cancelCheckin" class="muted" style="width:100%">Cancel Check-in</button>
+    </section>
+
+    <section class="card full">
+      <label>Contacts (stored in browser)</label>
+      <div class="row" style="margin-bottom:8px">
+        <input id="contactName" placeholder="Name" />
+        <input id="contactPhone" placeholder="Phone (+countrycode)" />
+        <button id="addContact" class="muted">Add</button>
+      </div>
+      <div id="contactsList" style="display:flex;flex-direction:column;gap:8px"></div>
+    </section>
+
+    <section class="card">
+      <label>Location</label>
+      <div class="row" style="margin-bottom:8px">
+        <button id="getLoc" class="muted" style="flex:1">Get Current Location</button>
+        <button id="shareLoc" class="muted" style="flex:1">Share Location</button>
+      </div>
+
+      <label>Live tracking</label>
+      <div class="row">
+        <button id="startTrack" class="muted" style="flex:1">Start Tracking</button>
+        <button id="stopTrack" class="muted" style="flex:1">Stop Tracking</button>
+      </div>
+      <div style="height:8px"></div>
+      <label>Webhook (optional)</label>
+      <input id="webhook" placeholder="https://webhook.site/..." />
+    </section>
+
+    <section class="card full">
+      <label>About / Tips</label>
+      <div class="small">This is a demo single-file app ready for GitHub Pages. Tap "Enable System" once to unlock audio & sensors. Use test buttons to simulate triggers. For an ultra-loud real siren: upload a file named <code>siren.mp3</code> to your repo root; the app will use it if present.</div>
+    </section>
+  </main>
+
+  <footer>
+    <small>SafeHer — Single file. Deploy to GitHub Pages (main / root). Test on Chrome for Android for best sensor support.</small>
+  </footer>
+</div>
+
+<!-- Fake call modal -->
+<div id="fakeCallModal" aria-hidden="true">
+  <div id="fakeCallBox">
+    <h3 style="margin:0">Incoming Call</h3>
+    <p class="small" id="fakeFrom">Unknown</p>
+    <div style="height:10px"></div>
+    <div style="display:flex;gap:8px;justify-content:center">
+      <button id="fakeAnswer" class="muted">Answer</button>
+      <button id="fakeDecline" class="danger">Decline</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===========================
+   Minimal robust single-file app
+   - Use enable screen to unlock user gesture for audio & motion
+   - WebAudio police-type siren + fallback to siren.mp3 if uploaded
+   =========================== */
+
+/* ---- small helpers ---- */
+const logEl = (txt) => {
+  const el = document.getElementById('log');
+  el.innerText = (new Date()).toLocaleTimeString() + ' — ' + txt + '\n' + el.innerText;
+};
+const byId = id => document.getElementById(id);
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+/* ---- app state ---- */
+let audioCtx = null;
+let sirenNodes = null;
+let sirenActive = false;
+let sirenTimeoutId = null;
+let fallbackAudio = null;
+let watchId = null;
+let checkinTimer = null;
+let checkinSeconds = 0;
+const contactsKey = 'safeher_contacts_v1';
+
+/* ---- enable / unlock function ---- */
+async function enableSystem() {
+  // unlock audio context
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    await audioCtx.resume();
+    logEl('Audio unlocked');
+  } catch (e) {
+    console.warn('Audio unlock error', e);
+  }
+
+  // request device motion permission on iOS
+  try {
+    if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+      const res = await DeviceMotionEvent.requestPermission();
+      logEl('DeviceMotion permission: ' + res);
+    }
+  } catch (e) {
+    console.warn('DeviceMotion request failed', e);
+  }
+
+  // start voice permission if available (only when user starts SR)
+  initializeVoice();
+
+  // Try to load fallback audio (siren.mp3) silently
+  try {
+    fallbackAudio = new Audio('./siren.mp3');
+    fallbackAudio.loop = true;
+    await fallbackAudio.play().then(()=>{ fallbackAudio.pause(); fallbackAudio.currentTime = 0; logEl('siren.mp3 preloaded'); }).catch(()=>{ /* may be blocked until gesture */ });
+  } catch(e){ /* ignore */ }
+
+  // hide start screen, show app
+  byId('startScreen').style.display = 'none';
+  document.getElementById('app').setAttribute('aria-hidden','false');
+  logEl('System enabled. Use buttons to test.');
+}
+
+/* Bind enable button */
+byId('enableBtn').addEventListener('click', enableSystem);
+byId('enableLater').addEventListener('click', ()=>{ byId('startScreen').style.display='none'; document.getElementById('app').setAttribute('aria-hidden','false'); logEl('Enabled later (demo). Some features may be blocked.)'); });
+
+/* ---- siren: WebAudio synth (police-like) with fallback to uploaded mp3 ---- */
+async function startSiren(durationMs=10*60*1000){
+  // if fallback file present and playable, prefer it
+  if (fallbackAudio) {
+    try {
+      await fallbackAudio.play();
+      sirenActive = true;
+      logEl('Playing fallback siren.mp3');
+      if (durationMs>0) sirenTimeoutId = setTimeout(stopSiren, durationMs);
+      if (navigator.vibrate) navigator.vibrate([400,200,400,200]);
+      return;
+    } catch(e){
+      console.warn('Fallback audio play failed', e);
+      // proceed to synth
+    }
+  }
+
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    // create nodes
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.0;
+    gain.connect(audioCtx.destination);
+
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    osc1.type = 'sawtooth';
+    osc2.type = 'sawtooth';
+    osc1.frequency.value = 400;
+    osc2.frequency.value = 800;
+    osc2.detune.value = -30;
+
+    // LFO to sweep frequency for siren effect
+    const lfo = audioCtx.createOscillator();
+    lfo.frequency.value = 1.8; // speed of sweep
+    const lfoGain = audioCtx.createGain();
+    lfoGain.gain.value = 200; // sweep depth
+
+    lfo.connect(lfoGain);
+    lfoGain.connect(osc1.frequency);
+    lfoGain.connect(osc2.frequency);
+
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 700;
+    filter.Q.value = 0.8;
+
+    osc1.connect(filter);
+    osc2.connect(filter);
+    filter.connect(gain);
+
+    osc1.start();
+    osc2.start();
+    lfo.start();
+
+    // ramp up
+    gain.gain.cancelScheduledValues(audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + 0.12);
+
+    sirenNodes = {gain, osc1, osc2, lfo, lfoGain, filter};
+    sirenActive = true;
+    logEl('Siren started (synth)');
+    if (durationMs>0) sirenTimeoutId = setTimeout(stopSiren, durationMs);
+    if (navigator.vibrate) navigator.vibrate([400,200,400]);
+
+  } catch (err) {
+    console.error('startSiren error', err);
+    logEl('Siren failed: ' + (err && err.message ? err.message : err));
+  }
+}
+
+function stopSiren(){
+  // stop fallback audio
+  try { if (fallbackAudio){ fallbackAudio.pause(); fallbackAudio.currentTime = 0; } } catch(e){}
+  if (sirenTimeoutId){ clearTimeout(sirenTimeoutId); sirenTimeoutId = null; }
+  if (!sirenActive){ logEl('Siren already stopped'); return; }
+  if (sirenNodes && audioCtx){
+    try {
+      const {gain, osc1, osc2, lfo} = sirenNodes;
+      gain.gain.cancelScheduledValues(audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.08);
+      setTimeout(()=>{
+        try{ osc1.stop(); osc2.stop(); lfo.stop(); }catch(e){}
+        sirenNodes = null;
+      }, 150);
+    } catch(e){ console.warn('Error stopping nodes', e); }
+  }
+  if (navigator.vibrate) navigator.vibrate(0);
+  sirenActive = false;
+  logEl('Siren stopped');
+}
+
+/* bind siren buttons */
+byId('startSiren').addEventListener('click', ()=> startSiren(10*60*1000));
+byId('stopSiren').addEventListener('click', stopSiren);
+
+/* ---- Contacts ---- */
+function loadContacts(){ try{ return JSON.parse(localStorage.getItem(contactsKey) || '[]'); }catch(e){return [];} }
+function saveContacts(list){ localStorage.setItem(contactsKey, JSON.stringify(list)); renderContacts(); }
+function renderContacts(){
+  const root = byId('contactsList'); root.innerHTML = '';
+  const arr = loadContacts();
+  if (!arr.length){ root.innerHTML = '<div class="small">No contacts added.</div>'; return; }
+  arr.forEach((c,i)=>{
+    const div = document.createElement('div'); div.style.display='flex'; div.style.justifyContent='space-between'; div.style.alignItems='center'; div.style.padding='8px'; div.style.borderRadius='8px'; div.style.background='rgba(255,255,255,0.01)';
+    div.innerHTML = `<div><strong>${escapeHtml(c.name)}</strong><div class="small">${escapeHtml(c.phone)}</div></div>
+      <div style="display:flex;gap:8px"><button data-i="${i}" class="muted copyBtn">Copy</button><button data-i="${i}" class="muted removeBtn">Remove</button></div>`;
+    root.appendChild(div);
+  });
+  root.querySelectorAll('.copyBtn').forEach(b=>b.addEventListener('click', e=>{ const i=+e.currentTarget.dataset.i; const c=loadContacts()[i]; navigator.clipboard.writeText(c.phone).then(()=>logEl('Phone copied')) }));
+  root.querySelectorAll('.removeBtn').forEach(b=>b.addEventListener('click', e=>{ const i=+e.currentTarget.dataset.i; const arr=loadContacts(); arr.splice(i,1); saveContacts(arr); }));
+}
+byId('addContact').addEventListener('click', ()=>{
+  const n = byId('contactName').value.trim(), p = byId('contactPhone').value.trim();
+  if(!n||!p){ alert('Enter name and phone'); return; }
+  const arr = loadContacts(); arr.push({name:n, phone:p}); saveContacts(arr); byId('contactName').value=''; byId('contactPhone').value=''; logEl('Contact added: '+n);
+});
+renderContacts();
+
+/* ---- Location helpers ---- */
+function shareLocation(lat, lon, note='I need help'){
+  const message = `${note}\nMy location: https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+  const hook = byId('webhook').value.trim();
+  if(hook){
+    fetch(hook, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({lat,lon,message,ts:new Date().toISOString()})}).then(()=>logEl('Webhook POSTed')).catch(e=>logEl('Webhook failed'));
+  }
+  if (navigator.share){
+    navigator.share({title:'Emergency', text:message}).then(()=>logEl('Shared via Web Share')).catch(()=>{ navigator.clipboard.writeText(message).then(()=>logEl('Message copied to clipboard')); window.open('https://wa.me/?text='+encodeURIComponent(message),'_blank'); });
+  } else {
+    navigator.clipboard.writeText(message).then(()=>logEl('Message copied to clipboard (use WhatsApp to send)')); window.open('https://wa.me/?text='+encodeURIComponent(message),'_blank');
+  }
+}
+
+byId('getLoc').addEventListener('click', ()=>{
+  if(!navigator.geolocation){ alert('Geolocation not supported'); return; }
+  navigator.geolocation.getCurrentPosition(pos=>{ logEl(`Location: ${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)} (±${pos.coords.accuracy}m)`); }, err=>{ logEl('Location error: '+err.message); alert('Location error: '+err.message); }, {enableHighAccuracy:true, timeout:8000});
+});
+byId('shareLoc').addEventListener('click', ()=>{
+  if(!navigator.geolocation){ alert('No geolocation'); return; }
+  navigator.geolocation.getCurrentPosition(pos=>{ shareLocation(pos.coords.latitude, pos.coords.longitude, 'Sharing my location'); }, err=>{ logEl('Location error: '+err.message); alert('Location needed'); });
+});
+
+/* ---- tracking start/stop ---- */
+byId('startTrack').addEventListener('click', ()=>{
+  if(watchId){ alert('Tracking already active'); return; }
+  if(!navigator.geolocation){ alert('Geolocation not supported'); return; }
+  watchId = navigator.geolocation.watchPosition(pos=>{ logEl(`Tracking: ${pos.coords.latitude.toFixed(6)}, ${pos.coords.longitude.toFixed(6)}`); }, err=>{ logEl('Tracking error: '+err.message); }, {enableHighAccuracy:true, maximumAge:2000});
+  logEl('Started live tracking');
+});
+byId('stopTrack').addEventListener('click', ()=>{ if(watchId){ navigator.geolocation.clearWatch(watchId); watchId=null; logEl('Stopped tracking'); } else logEl('Tracking not active'); });
+
+/* ---- Critical / Discreet SOS ---- */
+async function performCriticalSOS(playSiren=true){
+  logEl('Triggering CRITICAL SOS');
+  if(playSiren) startSiren(10*60*1000);
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{ shareLocation(pos.coords.latitude, pos.coords.longitude, 'CRITICAL SOS — Please help'); }, err=>{ logEl('No location'); shareLocation('unknown','unknown','CRITICAL SOS'); });
+  } else shareLocation('unknown','unknown','CRITICAL SOS');
+}
+async function performDiscreetSOS(){
+  logEl('Discreet SOS (share only)');
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{ shareLocation(pos.coords.latitude, pos.coords.longitude, 'Discreet SOS — I need help'); }, err=>{ shareLocation('unknown','unknown','Discreet SOS'); });
+  } else shareLocation('unknown','unknown','Discreet SOS');
+}
+
+/* long-press critical button to trigger */
+(function(){
+  const btn = byId('criticalBtn'); let t=null; const holdMs=900;
+  btn.addEventListener('touchstart', ()=> t = setTimeout(()=> performCriticalSOS(true), holdMs));
+  btn.addEventListener('mousedown', ()=> t = setTimeout(()=> performCriticalSOS(true), holdMs));
+  ['touchend','mouseup','mouseleave','touchcancel'].forEach(ev=> btn.addEventListener(ev, ()=>{ if(t){ clearTimeout(t); t=null; } }));
+  // regular click shows hint
+  btn.addEventListener('click', ()=> logEl('Tip: long-press Critical button to trigger SOS'));
+})();
+
+byId('discreetBtn').addEventListener('click', performDiscreetSOS);
+
+/* ---- Fake incoming call ---- */
+byId('fakeCallBtn').addEventListener('click', ()=> {
+  byId('fakeFrom').innerText = 'Unknown Caller';
+  const modal = byId('fakeCallModal'); modal.style.display='flex'; modal.setAttribute('aria-hidden','false');
+});
+byId('fakeDecline').addEventListener('click', ()=> { byId('fakeCallModal').style.display='none'; });
+byId('fakeAnswer').addEventListener('click', ()=> { byId('fakeCallModal').style.display='none'; alert('Pretend call answered — use to escape situation'); });
+
+/* ---- Shake detection ---- */
+let lastShakeTime = 0;
+function initShake(){
+  if(typeof DeviceMotionEvent === 'undefined'){ byId('shakeState').innerText='UNSUPPORTED'; return; }
+  function motion(e){
+    try{
+      const a = e.accelerationIncludingGravity;
+      if(!a) return;
+      const g = Math.sqrt(a.x*a.x + a.y*a.y + a.z*a.z);
+      if(g > 22){ // threshold for strong shake
+        const now = Date.now();
+        if(now - lastShakeTime > 1500){
+          lastShakeTime = now;
+          logEl('Shake detected -> discreet SOS');
+          performDiscreetSOS();
+        }
+      }
+    }catch(e){}
+  }
+  window.addEventListener('devicemotion', motion);
+  byId('testShake').addEventListener('click', ()=> { logEl('Simulated shake'); performDiscreetSOS(); });
+  byId('shakeState').innerText='ON';
+}
+initShake();
+
+/* ---- Voice recognition (SpeechRecognition) ---- */
+let sr = null;
+function initializeVoice(){
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SpeechRecognition){ byId('voiceState').innerText='UNSUPPORTED'; return; }
+  sr = new SpeechRecognition();
+  sr.continuous = true;
+  sr.interimResults = false;
+  sr.lang = 'en-US';
+  sr.onresult = (ev)=>{
+    for(let i = ev.resultIndex; i < ev.results.length; i++){
+      const text = ev.results[i][0].transcript.toLowerCase();
+      logEl('Voice: ' + text);
+      if(text.includes('help') || text.includes('help me') || text.includes('sos')){
+        logEl('Voice trigger matched -> critical SOS');
+        performCriticalSOS(true);
+      }
+    }
+  };
+  sr.onstart = ()=> byId('voiceState').innerText='LISTENING';
+  sr.onend = ()=> byId('voiceState').innerText='STOPPED';
+  byId('testVoice').addEventListener('click', ()=> {
+    try { sr.start(); setTimeout(()=> sr.stop(), 5000); logEl('Voice test started (5s)'); } catch(e){ logEl('Voice start error: '+(e.message||e)); }
+  });
+  byId('voiceState').innerText='READY';
+}
+
+/* ---- Check-in timer ---- */
+byId('startCheckin').addEventListener('click', ()=>{
+  const mins = Math.max(0, parseInt(byId('checkinMins').value||'0'));
+  if(mins<=0){ alert('Enter minutes > 0'); return; }
+  if(checkinTimer) clearInterval(checkinTimer);
+  checkinSeconds = mins * 60;
+  logEl('Check-in started: ' + mins + ' minute(s)');
+  checkinTimer = setInterval(()=>{
+    checkinSeconds--;
+    if(checkinSeconds % 60 === 0) logEl('Check-in remaining: ' + Math.ceil(checkinSeconds/60) + ' min');
+    if(checkinSeconds <= 0){
+      clearInterval(checkinTimer); checkinTimer = null;
+      logEl('Check-in missed -> auto-escalation');
+      performDiscreetSOS();
+    }
+  }, 1000);
+});
+byId('cancelCheckin').addEventListener('click', ()=>{ if(checkinTimer){ clearInterval(checkinTimer); checkinTimer=null; logEl('Check-in canceled'); } else logEl('No check-in active'); });
+
+/* ---- Contacts persistence helper functions provided above in renderContacts/saveContacts ---- */
+
+/* ---- Keyboard shortcuts for debugging ---- */
+window.addEventListener('keydown', (e)=>{ if(e.key==='s') startSiren(60*1000); if(e.key==='x') stopSiren(); });
+
+/* ---- Utility ---- */
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+/* -- final log -- */
+logEl('Single-file app loaded. Please tap Enable System on mobile.');
+
+</script>
+</body>
+</html>
